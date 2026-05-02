@@ -1,0 +1,12 @@
+# 1. API Framework & Server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0.post1
+
+# 2. Asynchronous Web Scraper
+aiohttp==3.9.1
+
+# 3. Graph Database Driver
+neo4j==5.14.1
+
+# 4. Enterprise PDF Generation
+reportlab==4.0.7

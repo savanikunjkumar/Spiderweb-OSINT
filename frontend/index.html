@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spiderweb OSINT | Kunjkumar Savani</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #020617; --card: #0f172a; --accent: #22d3ee; 
+            --accent-glow: rgba(34, 211, 238, 0.3); --text: #f8fafc; 
+            --border: #1e293b; --success: #10b981; --error: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            background-image: radial-gradient(at 0% 0%, hsla(217,100%,10%,1) 0, transparent 50%), radial-gradient(at 100% 100%, hsla(180,100%,5%,1) 0, transparent 50%);
+            color: var(--text); margin: 0; padding: 2rem;
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+        }
+
+        .container {
+            display: grid; grid-template-columns: 420px 1fr; gap: 2rem;
+            max-width: 1300px; width: 100%; flex-grow: 1;
+        }
+
+        .panel {
+            background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px);
+            border: 1px solid var(--border); padding: 2rem; border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column;
+        }
+
+        .panel-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 2rem; }
+        h1 { font-size: 1.5rem; margin: 0; letter-spacing: -1px; }
+        .accent-text { color: var(--accent); font-weight: 800; }
+
+        .field-group { margin-bottom: 1.5rem; }
+        label { display: block; font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 0.5rem; }
+        input { width: 100%; padding: 0.9rem; border-radius: 0.75rem; border: 1px solid var(--border); background: #1e293b; color: white; box-sizing: border-box; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-glow); }
+
+        .action-btn { width: 100%; padding: 1rem; border-radius: 0.75rem; border: none; background: var(--accent); color: #020617; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.6rem; transition: 0.2s; }
+        .action-btn:hover { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 10px 15px -3px var(--accent-glow); }
+        .action-btn:disabled { background: #475569; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th { text-align: left; padding: 1rem; color: #64748b; font-size: 0.75rem; border-bottom: 1px solid var(--border); }
+        td { padding: 1rem; border-bottom: 1px solid rgba(30, 41, 59, 0.5); font-size: 0.85rem; }
+        
+        .status-pill { padding: 0.3rem 0.7rem; border-radius: 2rem; font-size: 0.65rem; font-weight: 800; background: rgba(16, 185, 129, 0.1); color: var(--success); }
+        .pdf-btn { background: rgba(34, 211, 238, 0.1); border: 1px solid var(--accent); color: var(--accent); padding: 0.4rem 0.8rem; border-radius: 0.5rem; font-size: 0.7rem; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 0.4rem;}
+        .pdf-btn:hover { background: var(--accent); color: #020617; }
+
+        #toast { position: fixed; bottom: 30px; right: 30px; background: var(--card); border-left: 4px solid var(--accent); color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 1rem; transform: translateX(150%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1000; }
+        #toast.show { transform: translateX(0); }
+
+        .footer { margin-top: 3rem; width: 100%; max-width: 1300px; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #64748b; }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a { color: #94a3b8; text-decoration: none; display: flex; align-items: center; gap: 0.4rem; transition: 0.2s; }
+        .footer-links a:hover { color: var(--accent); }
+
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .spin { animation: rotate 2s linear infinite; }
+        @media (max-width: 1000px) { .container { grid-template-columns: 1fr; } .footer { flex-direction: column; gap: 1rem; text-align: center; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="panel">
+        <div class="panel-header">
+            <i data-lucide="shield-check" style="color: var(--accent); width: 28px; height: 28px;"></i>
+            <h1>SPIDERWEB <span class="accent-text">CORE</span></h1>
+        </div>
+
+        <div class="field-group">
+            <label>Target Full Name</label>
+            <input type="text" id="target_name" placeholder="E.g. John Williams">
+        </div>
+        <div class="field-group">
+            <label>Discovery Handle</label>
+            <input type="text" id="target_user" placeholder="E.g. John.Williams">
+        </div>
+        <div class="field-group">
+            <label>Access Point (Email)</label>
+            <input type="email" id="target_email" placeholder="E.g. user@domain.com">
+        </div>
+
+        <button onclick="executeScan()" id="scanBtn" class="action-btn">
+            <i data-lucide="zap"></i> DEPLOY OSINT SPIDER
+        </button>
+
+        <div style="margin-top: auto; padding-top: 2rem;">
+            <a href="http://localhost:7474" target="_blank" style="text-decoration:none; color: #64748b; font-size: 0.75rem; display: flex; align-items: center; gap: 0.5rem; transition: 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='#64748b'">
+                <i data-lucide="database" style="width: 14px; height: 14px;"></i> Open Neo4j Graph Visualizer
+            </a>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <i data-lucide="activity" style="color: var(--accent); width: 28px; height: 28px;"></i>
+            <h1>OPERATION <span class="accent-text">LOGS</span></h1>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+            <button onclick="vanishData()" style="background: none; border: 1px solid var(--error); color: var(--error); padding: 0.4rem 0.8rem; border-radius: 0.5rem; font-size: 0.65rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: 0.3s;" onmouseover="this.style.background='var(--error)'; this.style.color='white'">
+                <i data-lucide="trash-2" style="width: 12px;"></i> PURGE ALL RECORDS
+            </button>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="history-table">
+                <thead><tr><th>TARGET</th><th>HANDLE</th><th>STATUS</th><th>EXPORT</th></tr></thead>
+                <tbody id="logItems"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="toast"><i data-lucide="info" style="color: var(--accent)"></i> <span id="toast-msg">Notification</span></div>
+
+<footer class="footer">
+    <div>
+        &copy; 2026 Spiderweb OSINT Engine. Engineered by <strong>Kunjkumar Savani</strong>. All rights reserved.
+    </div>
+    <div class="footer-links">
+        <a href="https://github.com/savanikunjkumar" target="_blank">
+            <i data-lucide="github" style="width: 16px; height: 16px;"></i> GitHub
+        </a>
+        <a href="https://linkedin.com/in/kunj-savani-08a38937a/" target="_blank">
+            <i data-lucide="linkedin" style="width: 16px; height: 16px;"></i> LinkedIn
+        </a>
+        <a href="https://x.com/kunjkumar_" target="_blank">
+            <i data-lucide="twitter" style="width: 16px; height: 16px;"></i> X (Twitter)
+        </a>
+    </div>
+</footer>
+
+<script>
+    lucide.createIcons();
+    
+    document.addEventListener('DOMContentLoaded', renderLogs);
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        document.getElementById('toast-msg').innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+    async function executeScan() {
+        const btn = document.getElementById('scanBtn');
+        const name = document.getElementById('target_name').value;
+        const user = document.getElementById('target_user').value;
+        const mail = document.getElementById('target_email').value;
+
+        if (!name || !user || !mail) return showToast("⚠️ Missing critical parameters.");
+
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader-2" class="spin"></i> SCANNING...`;
+        showToast("🛰️ Deploying spider to digital perimeter...");
+
+        try {
+            const url = `http://localhost:8000/scan?name=${encodeURIComponent(name)}&username=${encodeURIComponent(user)}&email=${encodeURIComponent(mail)}`;
+            const response = await fetch(url);
+            if (response.ok) {
+                showToast("✅ Scan successful. Map updated.");
+                setTimeout(renderLogs, 1000); 
+            } else {
+                showToast("❌ Error: Received bad response from Engine.");
+            }
+        } catch (err) {
+            showToast("❌ Error: Backend Engine Offline.");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="zap"></i> DEPLOY OSINT SPIDER`;
+            lucide.createIcons();
+        }
+    }
+
+    async function renderLogs() {
+        try {
+            const response = await fetch('http://localhost:8000/history');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const logs = data.history;
+                
+                if (logs.length === 0) {
+                    document.getElementById('logItems').innerHTML = `<tr><td colspan="4" style="text-align:center; color: #64748b;">No targets archived yet.</td></tr>`;
+                    return;
+                }
+
+                document.getElementById('logItems').innerHTML = logs.map(log => `
+                    <tr>
+                        <td style="font-weight: 600;">${log.name}</td>
+                        <td><span style="color: var(--accent)">@${log.user}</span></td>
+                        <td><span class="status-pill">ARCHIVED IN DB</span></td>
+                        <td>
+                            <button class="pdf-btn" onclick="downloadSecurePDF('${log.user}')">
+                                <i data-lucide="lock" style="width:12px; height:12px;"></i> PDF
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            console.error("Database connection offline.", err);
+        }
+    }
+
+    async function vanishData() {
+        if (!confirm("⚠️ This will permanently delete all records. Proceed?")) return;
+        
+        try {
+            const response = await fetch('http://localhost:8000/purge', { 
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                showToast("🧹 Database wiped clean.");
+                renderLogs(); 
+            } else {
+                alert("Backend Error: " + data.message);
+            }
+        } catch (err) {
+            console.error(err);
+            showToast("❌ Error: Check if main.py is running.");
+        }
+    }
+
+    function downloadSecurePDF(username) {
+        const pass = username; 
+        showToast(`🔒 Encrypting Report. Key: ${pass}`);
+        setTimeout(() => {
+            const url = `http://localhost:8000/report?username=${username}&password=${encodeURIComponent(pass)}`;
+            window.open(url, '_blank');
+        }, 1500);
+    }
+</script>
+
+</body>
+</html>

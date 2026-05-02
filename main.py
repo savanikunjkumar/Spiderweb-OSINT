@@ -109,6 +109,7 @@ async def generate_report(
         # 2. Use BytesIO to create PDF in RAM (Avoids local file permission errors)
         buffer = BytesIO()
         
+        # Default password is set to your academic ID if none provided
         encryption_key = password if password else "25BCE11382"
         enc = StandardEncryption(encryption_key, canPrint=1)
         
@@ -123,11 +124,12 @@ async def generate_report(
         elements = []
 
         # --- BRANDING SECTION ---
+        # Note: Using HexColor (Capital 'H' and 'C') to resolve previous attribute error
         title_style = ParagraphStyle(
             'TitleStyle',
             parent=styles['Heading1'],
             fontSize=28,
-            textColor=colors.hexColor("#22d3ee"), # Your Cyan Accent
+            textColor=colors.HexColor("#22d3ee"), 
             alignment=TA_CENTER,
             spaceAfter=5
         )
@@ -152,7 +154,7 @@ async def generate_report(
             
             osint_table = Table(table_data, colWidths=[140, 320])
             osint_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.hexColor("#0f172a")), 
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#0f172a")), 
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -163,14 +165,14 @@ async def generate_report(
             ]))
             elements.append(osint_table)
         else:
-            elements.append(Paragraph("No linked intelligence found.", styles['Italic']))
+            elements.append(Paragraph("No linked intelligence found in the graph.", styles['Italic']))
 
         # --- FOOTER ---
         elements.append(Spacer(1, 40))
         footer_text = f"CONFIDENTIAL | Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         elements.append(Paragraph(footer_text, styles['Normal']))
 
-        # 3. Build and Stream
+        # 3. Build and Stream directly to browser
         doc.build(elements)
         buffer.seek(0)
         

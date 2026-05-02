@@ -32,7 +32,7 @@ class OSINTGraphDB:
 
     def push_intelligence(self, target_name: str, username: str, email: str, discovered_links: dict):
         """Merges discovered data into the Neo4j Graph using unique identifiers."""
-        # Initial Core Nodes
+        # Clean labels to remove special characters for Cypher compatibility
         query = """
         MERGE (t:Target {name: $name})
         MERGE (u:Username {value: $username})
@@ -41,39 +41,57 @@ class OSINTGraphDB:
         MERGE (t)-[:REGISTERED_EMAIL]->(e)
         """
         
-        # Prepare parameters dictionary
         params = {"name": target_name, "username": username, "email": email}
         
-        # Add dynamic platform nodes with unique variable names (p0, p1, p2...)
         for i, (platform, url) in enumerate(discovered_links.items()):
-            var_name = f"p{i}"
-            # We use safe labels and parameterized URLs
+            # Use a generic 'Platform' label with a 'type' property for better query performance
             query += f"""
-            MERGE ({var_name}:{platform} {{url: $url_{i}}})
-            MERGE (u)-[:ACTIVE_ON]->({var_name})
+            MERGE (p{i}:Platform {{type: $type_{i}, url: $url_{i}}})
+            MERGE (u)-[:ACTIVE_ON]->(p{i})
             """
+            params[f"type_{i}"] = platform
             params[f"url_{i}"] = url
             
         with self.driver.session() as session:
             try:
                 session.run(query, **params)
-                logger.info(f"Graph Updated: Ingested {len(discovered_links)} intelligence nodes for @{username}.")
+                logger.info(f"Graph Updated: Ingested {len(discovered_links)} verified nodes for @{username}.")
             except Exception as e:
                 logger.error(f"Graph Ingestion Failed: {str(e)}")
 
 # ==========================================
-# 3. ASYNCHRONOUS OSINT SCRAPER
+# 3. ASYNCHRONOUS OSINT SCRAPER (WITH VERIFICATION)
 # ==========================================
-async def check_platform(session, platform: str, url: str) -> dict:
-    """Asynchronously checks if a profile exists on a given platform."""
+async def check_platform(session, platform: str, url: str, username: str) -> dict:
+    """Checks and VERIFIES if a profile exists by scanning page content."""
+    
+    # Phrases that indicate a "200 OK" page is actually a "Not Found" page
+    error_indicators = [
+        "page not found", "user not found", "nobody on reddit", 
+        "could not be found", "doesn't exist", "does not exist",
+        "create an account", "join today", "signup", "sign up", "404"
+    ]
+    
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        async with session.get(url, headers=headers, timeout=5) as response:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OSINT-Spider/1.0'}
+        async with session.get(url, headers=headers, timeout=7, allow_redirects=True) as response:
             if response.status == 200:
-                logger.info(f"[HIT] Found active profile on {platform}: {url}")
+                content = (await response.text()).lower()
+                
+                # VERIFICATION 1: Does the target username actually appear in the HTML?
+                if username.lower() not in content:
+                    return None
+                
+                # VERIFICATION 2: Does the page contain "Not Found" keywords?
+                for error in error_indicators:
+                    if error in content:
+                        # Ignore the error if it's just part of the platform's name/footer
+                        if error not in platform.lower():
+                            return None
+
+                logger.info(f"[HIT] Verified profile on {platform}: {url}")
                 return {platform: url}
-            else:
-                return None
+            return None
     except Exception:
         return None
 
@@ -82,34 +100,23 @@ async def async_spider_crawl(username: str) -> dict:
     platforms = {
         "GitHub": f"https://github.com/{username}",
         "GitLab": f"https://gitlab.com/{username}",
-        "BitBucket": f"https://bitbucket.org/{username}/",
         "LeetCode": f"https://leetcode.com/{username}",
         "HackerRank": f"https://www.hackerrank.com/{username}",
         "Codeforces": f"https://codeforces.com/profile/{username}",
-        "Replit": f"https://replit.com/@{username}",
         "TryHackMe": f"https://tryhackme.com/p/{username}",
         "HackTheBox": f"https://app.hackthebox.com/users/{username}",
-        "Bugcrowd": f"https://bugcrowd.com/{username}",
-        "HackerOne": f"https://hackerone.com/{username}",
-        "X_Twitter": f"https://nitter.net/{username}", 
         "Reddit": f"https://www.reddit.com/user/{username}",
         "Medium": f"https://medium.com/@{username}",
-        "Pinterest": f"https://in.pinterest.com/{username}/",
-        "Tumblr": f"https://{username}.tumblr.com/",
-        "Flickr": f"https://www.flickr.com/people/{username}/",
         "Twitch": f"https://www.twitch.tv/{username}",
         "Steam": f"https://steamcommunity.com/id/{username}",
         "Chess": f"https://www.chess.com/member/{username}",
-        "Vimeo": f"https://vimeo.com/{username}",
-        "Linktree": f"https://linktr.ee/{username}",
-        "Pastebin": f"https://pastebin.com/u/{username}",
-        "Behance": f"https://www.behance.net/{username}",
-        "Dribbble": f"https://dribbble.com/{username}"
+        "Linktree": f"https://linktr.ee/{username}"
     }
     
     discovered_data = {}
     async with aiohttp.ClientSession() as session:
-        tasks = [check_platform(session, platform, url) for platform, url in platforms.items()]
+        # Pass the username to check_platform for verification logic
+        tasks = [check_platform(session, p, u, username) for p, u in platforms.items()]
         results = await asyncio.gather(*tasks)
         for result in results:
             if result:
@@ -121,7 +128,7 @@ async def async_spider_crawl(username: str) -> dict:
 # 4. THE PIPELINE EXECUTOR 
 # ==========================================
 def run_osint_pipeline(name: str, username: str, email: str):
-    logger.info(f"Deploying Spider Agents for target: {name}...")
+    logger.info(f"Deploying Verified Spider Agents for target: {name}...")
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -129,10 +136,10 @@ def run_osint_pipeline(name: str, username: str, email: str):
     loop.close()
     
     if discovered_data:
-        # NOTE: Ensure "adminpassword" matches your Neo4j Desktop settings!
+        # Ensure 'adminpassword' matches your Neo4j Desktop settings
         db = OSINTGraphDB("bolt://localhost:7687", "neo4j", "adminpassword")
         db.push_intelligence(name, username, email, discovered_data)
         db.close()
-        logger.info(f"MISSION COMPLETE: Target @{username} mapped successfully.")
+        logger.info(f"MISSION COMPLETE: Target @{username} mapped with verified hits.")
     else:
-        logger.warning(f"MISSION FAILED: No digital footprint found for @{username}.")
+        logger.warning(f"MISSION FAILED: No verified footprint found for @{username}.")

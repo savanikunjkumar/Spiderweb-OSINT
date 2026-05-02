@@ -1,1 +1,19 @@
+# 1. BASE IMAGE
+# Use a lightweight Nginx Alpine image to serve static files incredibly fast
+FROM nginx:alpine
 
+# 2. CLEANUP
+# Remove default Nginx placeholder page
+RUN rm -rf /usr/share/nginx/html/*
+
+# 3. INGEST SOURCE CODE
+# Copy your cyber-command dashboard into the server's public directory
+COPY index.html /usr/share/nginx/html/
+
+# 4. NETWORK EXPOSURE
+# Expose standard web port (maps to 5500 in docker-compose.yml)
+EXPOSE 80
+
+# 5. IGNITION SEQUENCE
+# Start Nginx automatically in the foreground
+CMD ["nginx", "-g", "daemon off;"]

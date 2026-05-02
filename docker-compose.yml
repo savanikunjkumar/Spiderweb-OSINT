@@ -1,1 +1,49 @@
+version: '3.8'
 
+services:
+  # Graph Database Tier
+  neo4j:
+    image: neo4j:5.12.0
+    container_name: spiderweb_neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474" # Neo4j Browser UI
+      - "7687:7687" # Bolt Protocol Connection
+    environment:
+      NEO4J_AUTH: neo4j/adminpassword
+    volumes:
+      - neo4j_data:/data
+  # Intelligence Engineer Tier (Back End)
+ 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    container_name: spiderweb_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000" # FastAPI Interface
+    depends_on:
+      - neo4j
+    environment:
+      # Tells the backend to talk to the Docker Neo4j, not localhost
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_PASSWORD=adminpassword
+
+  #  COMMAND DASHBOARD TIER (FRONTEND)
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: spiderweb_frontend
+    restart: unless-stopped
+    ports:
+      - "5500:80" # Maps Nginx internal port 80 to your local 5500
+    depends_on:
+      - backend
+
+# Persistent storage so graph data survives container restarts
+volumes:
+  neo4j_data:
+    name: spiderweb_graph_data
